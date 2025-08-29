@@ -1,0 +1,50 @@
+name: Lockfile Consistency
+
+on:
+  pull_request:
+  push:
+    branches: [ main ]
+
+jobs:
+  lockfile-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # -----------------
+      # Check npm projects
+      # -----------------
+      - name: Find and check npm lockfiles
+        run: |
+          for dir in $(find . -name "package.json" -not -path "*/node_modules/*" -exec dirname {} \;); do
+            echo "🔍 Checking npm project in $dir"
+            cd "$dir"
+            npm install --package-lock-only
+            git diff --exit-code package-lock.json || {
+              echo "❌ package-lock.json is stale in $dir. Run 'npm install' and commit the change."
+              exit 1
+            }
+            cd -
+          done
+
+      # -----------------
+      # Check Poetry projects
+      # -----------------
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Poetry
+        run: pip install poetry
+
+      - name: Find and check poetry lockfiles
+        run: |
+          for dir in $(find . -name "pyproject.toml" -exec dirname {} \;); do
+            echo "🔍 Checking Poetry project in $dir"
+            cd "$dir"
+            poetry lock --check || {
+              echo "❌ poetry.lock is stale in $dir. Run 'poetry lock' and commit the change."
+              exit 1
+            }
+            cd -
+          done
